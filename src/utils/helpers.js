@@ -48,16 +48,3 @@ export function formatTimeAgo(timestamp)
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     return `${Math.floor(seconds / 86400)}d ago`;
 }
-
-/** Parse / API error message */
-export function formatApiError(error)
-{
-    if (!error) return 'Unknown error';
-    if (typeof error === 'string') return error;
-    // Parse SDK error codes
-    if (error.code === 101) return 'Invalid username or password';
-    if (error.code === 209) return 'Session expired. Please login again.';
-    if (error.code === 142) return 'Validation error';
-    if (error.code === 119) return 'Operation not permitted';
-    return error.message || 'Something went wrong';
-}
