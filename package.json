@@ -15,6 +15,7 @@
         "format": "prettier --write \"src/**/*.{js,jsx,css}\""
     },
     "dependencies": {
+        "@vercel/analytics": "^2.0.1",
         "@wagmi/connectors": "^7.1.6",
         "@wagmi/core": "^3.3.2",
         "@web3modal/wagmi": "^5.1.11",

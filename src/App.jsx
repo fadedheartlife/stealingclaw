@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
@@ -120,6 +121,7 @@ export default function App()
                     />
                 </Routes>
             </BrowserRouter>
+            <Analytics />
         </ErrorBoundary>
     );
 }
