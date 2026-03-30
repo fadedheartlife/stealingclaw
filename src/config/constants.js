@@ -5,6 +5,9 @@ export const PRICE_REFRESH_INTERVAL = 15_000;
 export const QUOTE_DEBOUNCE_MS = 500;
 export const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
 
+/** Secret admin panel path — set via VITE_ADMIN_PATH env var. Keep this private. */
+export const ADMIN_SECRET_PATH = import.meta.env.VITE_ADMIN_PATH || '_cp';
+
 /** Admin role hierarchy */
 export const ADMIN_ROLES = {
     MASTER: 'master',

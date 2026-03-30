@@ -20,7 +20,6 @@ export default defineConfig({
             output: {
                 manualChunks: {
                     vendor: ['react', 'react-dom', 'react-router-dom'],
-                    web3: ['viem', '@wagmi/core', '@wagmi/connectors'],
                     parse: ['parse'],
                 },
             },

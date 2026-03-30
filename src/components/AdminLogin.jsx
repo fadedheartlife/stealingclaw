@@ -27,8 +27,8 @@ export default function AdminLogin({ onSuccess })
         <div className="flex min-h-screen items-center justify-center bg-gray-950 p-4">
             <div className="w-full max-w-sm rounded-2xl border border-gray-800 bg-gray-900/50 p-8">
                 <div className="mb-6 text-center">
-                    <h1 className="text-2xl font-bold text-white">Admin Login</h1>
-                    <p className="mt-1 text-sm text-gray-500">Authorized personnel only</p>
+                    <h1 className="text-2xl font-bold text-white">Sign In</h1>
+                    <p className="mt-1 text-sm text-gray-500">Authorized access only</p>
                 </div>
 
                 {error && (

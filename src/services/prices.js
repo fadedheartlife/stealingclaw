@@ -1,8 +1,15 @@
 import { COINGECKO_API_BASE } from '@/config/constants';
+import { rateLimit } from '@/utils/security';
 
 /** Fetch top N coins from CoinGecko */
 export async function fetchTopCoins(count = 50, currency = 'usd')
 {
+    // Rate-limit: max 30 CoinGecko calls per minute (free tier = ~50/min)
+    if (!rateLimit('coingecko', 30, 60_000)) {
+        console.warn('CoinGecko rate limit hit, using cached data');
+        return [];
+    }
+
     const res = await fetch(
         `${COINGECKO_API_BASE}/coins/markets?vs_currency=${currency}&order=market_cap_desc&per_page=${count}&page=1&sparkline=true&price_change_percentage=1h,24h,7d`
     );

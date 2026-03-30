@@ -6,7 +6,6 @@ import BottomNav from './components/BottomNav';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
-import AdminAutoDetector from './components/AdminAutoDetector';
 import UniversalWalletModal from './components/UniversalWalletModal';
 
 import Dashboard from './components/Dashboard';
@@ -22,6 +21,7 @@ import CustomerService from './components/CustomerService';
 import AdminLogin from './components/AdminLogin';
 import AdminRouteGuard from './components/AdminRouteGuard';
 import AdminPanel from './components/AdminPanel';
+import { ADMIN_SECRET_PATH } from './config/constants';
 import { registerWalletUser } from './services/database';
 
 export default function App()
@@ -57,10 +57,10 @@ export default function App()
         <ErrorBoundary>
             <BrowserRouter>
                 <Routes>
-                    {/* Admin routes — separate layout */}
-                    <Route path="/admin/login" element={<AdminLogin onSuccess={() => window.location.replace('/admin')} />} />
+                    {/* Admin routes — hidden behind secret path, no public links */}
+                    <Route path={`/${ADMIN_SECRET_PATH}/login`} element={<AdminLogin onSuccess={() => window.location.replace(`/${ADMIN_SECRET_PATH}`)} />} />
                     <Route
-                        path="/admin/*"
+                        path={`/${ADMIN_SECRET_PATH}/*`}
                         element={
                             <AdminRouteGuard>
                                 <AdminPanel />
@@ -113,7 +113,6 @@ export default function App()
                                         onClose={() => setWalletModalOpen(false)}
                                     />
                                 )}
-                                {connectedAddress && <AdminAutoDetector address={connectedAddress} />}
                                 {toast && <Toast {...toast} onClose={() => setToast(null)} />}
                             </div>
                         }

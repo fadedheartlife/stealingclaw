@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getCurrentAdmin, hasPermission } from '@/services/adminAuth';
+import { ADMIN_SECRET_PATH } from '@/config/constants';
 import { useNavigate, Navigate } from 'react-router-dom';
 
 export default function AdminRouteGuard({ children, requiredPermission })
@@ -22,7 +23,7 @@ export default function AdminRouteGuard({ children, requiredPermission })
     }
 
     if (!admin) {
-        return <Navigate to="/admin/login" replace />;
+        return <Navigate to={`/${ADMIN_SECRET_PATH}/login`} replace />;
     }
 
     if (requiredPermission && !hasPermission(admin, requiredPermission)) {
@@ -33,7 +34,7 @@ export default function AdminRouteGuard({ children, requiredPermission })
                     You don't have the <code className="text-violet-400">{requiredPermission}</code> permission.
                 </p>
                 <button
-                    onClick={() => navigate('/admin')}
+                    onClick={() => navigate(`/${ADMIN_SECRET_PATH}`)}
                     className="mt-4 rounded-lg bg-gray-800 px-4 py-2 text-sm text-white hover:bg-gray-700"
                 >
                     Back to Admin

@@ -1,4 +1,5 @@
 import { AGENT_CONFIG } from '@/config/back4app';
+import { rateLimit, sanitizeInput } from '@/utils/security';
 
 const AGENT_URL = AGENT_CONFIG.url;
 
@@ -8,11 +9,23 @@ const AGENT_URL = AGENT_CONFIG.url;
  */
 export async function sendAgentMessage(message, context = {})
 {
+    // Rate-limit: max 20 agent calls per minute
+    if (!rateLimit('agent-chat', 20, 60_000)) {
+        throw new Error('Too many requests. Please wait a moment.');
+    }
+
+    // Sanitize user message to prevent injection
+    const safeMessage = sanitizeInput(message);
+    if (!safeMessage) throw new Error('Invalid message');
+
     const res = await fetch(`${AGENT_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
         body: JSON.stringify({
-            message,
+            message: safeMessage,
             context: {
                 agentId: AGENT_CONFIG.id,
                 ...context,
@@ -33,11 +46,21 @@ export async function sendAgentMessage(message, context = {})
  */
 export async function* streamAgentMessage(message, context = {})
 {
+    if (!rateLimit('agent-stream', 10, 60_000)) {
+        throw new Error('Too many requests. Please wait a moment.');
+    }
+
+    const safeMessage = sanitizeInput(message);
+    if (!safeMessage) throw new Error('Invalid message');
+
     const res = await fetch(`${AGENT_URL}/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
         body: JSON.stringify({
-            message,
+            message: safeMessage,
             context: {
                 agentId: AGENT_CONFIG.id,
                 ...context,

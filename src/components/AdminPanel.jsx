@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { hasPermission, getCurrentAdmin, adminLogout, subscribeToAdmins } from '@/services/adminAuth';
+import { hasPermission, isMaster, getCurrentAdmin, adminLogout, subscribeToAdmins, createAdmin, updateAdminPermissions, updateAdminRole, removeAdmin } from '@/services/adminAuth';
+import { ADMIN_ROLES, ADMIN_PERMISSIONS, ADMIN_SECRET_PATH } from '@/config/constants';
 import
 {
     subscribeToUsers,
@@ -49,7 +50,7 @@ export default function AdminPanel()
     const handleLogout = useCallback(async () =>
     {
         await adminLogout();
-        navigate('/admin/login');
+        navigate(`/${ADMIN_SECRET_PATH}/login`);
     }, [navigate]);
 
     if (!admin) return null;
@@ -306,21 +307,228 @@ function ChatsTab({ chats })
 
 function AdminsTab({ admins })
 {
+    const currentAdmin = getCurrentAdmin();
+    const master = isMaster(currentAdmin);
+    const [showCreate, setShowCreate] = useState(false);
+    const [editingAdmin, setEditingAdmin] = useState(null);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+
+    // Create form state
+    const [newUsername, setNewUsername] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [newEmail, setNewEmail] = useState('');
+    const [newPerms, setNewPerms] = useState([]);
+
+    async function handleCreate(e)
+    {
+        e.preventDefault();
+        setError('');
+        try {
+            await createAdmin(newUsername, newPassword, newEmail, ADMIN_ROLES.ADMIN, newPerms);
+            setSuccess(`Admin "${newUsername}" created`);
+            setNewUsername('');
+            setNewPassword('');
+            setNewEmail('');
+            setNewPerms([]);
+            setShowCreate(false);
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            setError(err.message);
+        }
+    }
+
+    async function handleSavePerms()
+    {
+        if (!editingAdmin) return;
+        setError('');
+        try {
+            await updateAdminPermissions(editingAdmin.id, editingAdmin.permissions);
+            setSuccess(`Permissions updated for "${editingAdmin.username}"`);
+            setEditingAdmin(null);
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            setError(err.message);
+        }
+    }
+
+    async function handleRemove(admin)
+    {
+        if (!confirm(`Remove admin access for "${admin.username}"? They will be demoted to regular user.`)) return;
+        setError('');
+        try {
+            await removeAdmin(admin.id);
+            setSuccess(`"${admin.username}" removed from admins`);
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            setError(err.message);
+        }
+    }
+
+    function togglePerm(perm, perms, setPerms)
+    {
+        setPerms(perms.includes(perm) ? perms.filter((p) => p !== perm) : [...perms, perm]);
+    }
+
     return (
         <div>
-            <h3 className="mb-4 text-lg font-bold">Admin Accounts ({admins.length})</h3>
+            <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold">Admin Accounts ({admins.length})</h3>
+                {master && (
+                    <button
+                        onClick={() => setShowCreate(!showCreate)}
+                        className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500"
+                    >
+                        {showCreate ? 'Cancel' : '+ Create Admin'}
+                    </button>
+                )}
+            </div>
+
+            {error && <div className="mb-4 rounded-lg bg-red-900/20 px-4 py-2.5 text-sm text-red-400">{error}</div>}
+            {success && <div className="mb-4 rounded-lg bg-green-900/20 px-4 py-2.5 text-sm text-green-400">{success}</div>}
+
+            {/* Create New Admin Form */}
+            {showCreate && master && (
+                <form onSubmit={handleCreate} className="mb-6 rounded-xl border border-gray-800 bg-gray-900/50 p-5 space-y-4">
+                    <h4 className="font-bold text-white">Create New Admin</h4>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div>
+                            <label className="mb-1 block text-xs text-gray-400">Username *</label>
+                            <input
+                                type="text"
+                                required
+                                value={newUsername}
+                                onChange={(e) => setNewUsername(e.target.value)}
+                                className="w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-violet-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-xs text-gray-400">Password * (min 8 chars)</label>
+                            <input
+                                type="password"
+                                required
+                                minLength={8}
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-violet-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-xs text-gray-400">Email (optional)</label>
+                            <input
+                                type="email"
+                                value={newEmail}
+                                onChange={(e) => setNewEmail(e.target.value)}
+                                className="w-full rounded-lg bg-gray-800 px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-violet-500"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="mb-2 block text-xs text-gray-400">Permissions</label>
+                        <div className="flex flex-wrap gap-2">
+                            {ADMIN_PERMISSIONS.map((perm) => (
+                                <button
+                                    key={perm}
+                                    type="button"
+                                    onClick={() => togglePerm(perm, newPerms, setNewPerms)}
+                                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${newPerms.includes(perm)
+                                        ? 'bg-violet-600 text-white'
+                                        : 'bg-gray-800 text-gray-400 hover:text-white'
+                                        }`}
+                                >
+                                    {perm}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <button
+                        type="submit"
+                        className="rounded-xl bg-green-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-green-500"
+                    >
+                        Create Admin Account
+                    </button>
+                </form>
+            )}
+
+            {/* Edit Permissions Modal */}
+            {editingAdmin && (
+                <div className="mb-6 rounded-xl border border-violet-600/50 bg-gray-900/80 p-5 space-y-4">
+                    <h4 className="font-bold text-white">Edit Permissions — {editingAdmin.username}</h4>
+                    <div className="flex flex-wrap gap-2">
+                        {ADMIN_PERMISSIONS.map((perm) => (
+                            <button
+                                key={perm}
+                                type="button"
+                                onClick={() =>
+                                {
+                                    const perms = editingAdmin.permissions.includes(perm)
+                                        ? editingAdmin.permissions.filter((p) => p !== perm)
+                                        : [...editingAdmin.permissions, perm];
+                                    setEditingAdmin({ ...editingAdmin, permissions: perms });
+                                }}
+                                className={`rounded-full px-3 py-1 text-xs font-medium transition ${editingAdmin.permissions.includes(perm)
+                                    ? 'bg-violet-600 text-white'
+                                    : 'bg-gray-800 text-gray-400 hover:text-white'
+                                    }`}
+                            >
+                                {perm}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={handleSavePerms} className="rounded-lg bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-500">Save</button>
+                        <button onClick={() => setEditingAdmin(null)} className="rounded-lg bg-gray-800 px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+                    </div>
+                </div>
+            )}
+
+            {/* Admin List */}
             <div className="space-y-2">
                 {admins.map((a) => (
                     <div key={a.id} className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/50 p-4">
                         <div>
-                            <p className="text-sm text-white">{a.email}</p>
-                            <p className="text-xs text-gray-500">{a.role}</p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-white">{a.username}</p>
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.role === ADMIN_ROLES.MASTER
+                                    ? 'bg-amber-600/20 text-amber-400'
+                                    : 'bg-violet-600/20 text-violet-400'
+                                    }`}>
+                                    {a.role}
+                                </span>
+                            </div>
+                            {a.email && <p className="text-xs text-gray-500">{a.email}</p>}
+                            <div className="mt-1 flex flex-wrap gap-1">
+                                {a.role === ADMIN_ROLES.MASTER ? (
+                                    <span className="text-xs text-amber-500/70">All permissions</span>
+                                ) : (
+                                    (a.permissions || []).map((p) => (
+                                        <span key={p} className="rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-400">{p}</span>
+                                    ))
+                                )}
+                                {a.role !== ADMIN_ROLES.MASTER && (!a.permissions || a.permissions.length === 0) && (
+                                    <span className="text-xs text-gray-600">No permissions</span>
+                                )}
+                            </div>
                         </div>
-                        <span className="rounded-full bg-violet-600/20 px-2 py-0.5 text-xs text-violet-400">
-                            {a.permissions?.length || 0} permissions
-                        </span>
+                        {master && a.role !== ADMIN_ROLES.MASTER && (
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setEditingAdmin({ ...a })}
+                                    className="rounded bg-gray-800 px-3 py-1.5 text-xs text-violet-400 hover:bg-gray-700"
+                                >
+                                    Edit Perms
+                                </button>
+                                <button
+                                    onClick={() => handleRemove(a)}
+                                    className="rounded bg-red-900/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/50"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        )}
                     </div>
                 ))}
+                {admins.length === 0 && <p className="text-sm text-gray-600">No admin accounts</p>}
             </div>
         </div>
     );
