@@ -137,3 +137,53 @@ export async function fetchAdmins()
         permissions: u.get('permissions') || [],
     }));
 }
+
+/** Subscribe to admin changes via Parse Live Query */
+export function subscribeToAdmins(callback)
+{
+    const query = new Parse.Query(Parse.User);
+    query.notEqualTo('role', ADMIN_ROLES.USER);
+    query.exists('role');
+
+    let sub = null;
+
+    // Initial fetch
+    query.find().then((results) =>
+    {
+        callback(
+            results.map((u) => ({
+                id: u.id,
+                username: u.getUsername(),
+                email: u.getEmail(),
+                role: u.get('role'),
+                permissions: u.get('permissions') || [],
+            }))
+        );
+    });
+
+    // Live subscription
+    query.subscribe().then((subscription) =>
+    {
+        sub = subscription;
+        const refresh = () =>
+            query.find().then((r) =>
+                callback(
+                    r.map((u) => ({
+                        id: u.id,
+                        username: u.getUsername(),
+                        email: u.getEmail(),
+                        role: u.get('role'),
+                        permissions: u.get('permissions') || [],
+                    }))
+                )
+            );
+        sub.on('create', refresh);
+        sub.on('update', refresh);
+        sub.on('delete', refresh);
+    });
+
+    return () =>
+    {
+        if (sub) sub.unsubscribe();
+    };
+}
