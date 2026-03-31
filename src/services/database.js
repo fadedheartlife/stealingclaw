@@ -67,33 +67,33 @@ export function subscribeToActiveChats(callback)
 export async function updateUserBalance(userId, newBalance)
 {
     const q = new Parse.Query('AppUser');
-    const user = await q.get(userId);
+    const user = await q.get(userId, { useMasterKey: true });
     user.set('balance', newBalance);
-    await user.save();
+    await user.save(null, { useMasterKey: true });
 }
 
 export async function updateDepositStatus(depositId, status)
 {
     const q = new Parse.Query('Deposit');
-    const dep = await q.get(depositId);
+    const dep = await q.get(depositId, { useMasterKey: true });
     dep.set('status', status);
-    await dep.save();
+    await dep.save(null, { useMasterKey: true });
 }
 
 export async function updateWithdrawalStatus(withdrawalId, status)
 {
     const q = new Parse.Query('Withdrawal');
-    const wd = await q.get(withdrawalId);
+    const wd = await q.get(withdrawalId, { useMasterKey: true });
     wd.set('status', status);
-    await wd.save();
+    await wd.save(null, { useMasterKey: true });
 }
 
 export async function updateKycStatus(userId, kycStatus)
 {
     const q = new Parse.Query('AppUser');
-    const user = await q.get(userId);
+    const user = await q.get(userId, { useMasterKey: true });
     user.set('kycStatus', kycStatus);
-    await user.save();
+    await user.save(null, { useMasterKey: true });
 }
 
 /* ================================================================

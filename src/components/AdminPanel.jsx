@@ -144,6 +144,25 @@ export default function AdminPanel()
 
 function UsersTab({ users })
 {
+    const [editingId, setEditingId] = useState(null);
+    const [balanceInput, setBalanceInput] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    async function handleSaveBalance(userId)
+    {
+        if (balanceInput === '') return;
+        setSaving(true);
+        try {
+            await updateUserBalance(userId, Number(balanceInput));
+        } catch (err) {
+            console.error('Failed to update balance:', err);
+        } finally {
+            setSaving(false);
+            setEditingId(null);
+            setBalanceInput('');
+        }
+    }
+
     return (
         <div>
             <h3 className="mb-4 text-lg font-bold">Users ({users.length})</h3>
@@ -181,16 +200,39 @@ function UsersTab({ users })
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 text-right">
-                                    <button
-                                        onClick={() =>
-                                        {
-                                            const amt = prompt('Set new balance:');
-                                            if (amt !== null) updateUserBalance(u.id, Number(amt));
-                                        }}
-                                        className="rounded bg-gray-800 px-2 py-1 text-xs text-white hover:bg-gray-700"
-                                    >
-                                        Set Balance
-                                    </button>
+                                    {editingId === u.id ? (
+                                        <div className="flex items-center justify-end gap-1">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={balanceInput}
+                                                onChange={(e) => setBalanceInput(e.target.value)}
+                                                placeholder="New balance"
+                                                className="w-28 rounded bg-gray-800 px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-violet-500"
+                                                autoFocus
+                                            />
+                                            <button
+                                                onClick={() => handleSaveBalance(u.id)}
+                                                disabled={saving}
+                                                className="rounded bg-violet-700 px-2 py-1 text-xs text-white hover:bg-violet-600 disabled:bg-gray-700"
+                                            >
+                                                {saving ? '…' : 'Save'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setEditingId(null); setBalanceInput(''); }}
+                                                className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => { setEditingId(u.id); setBalanceInput(String(u.balance ?? 0)); }}
+                                            className="rounded bg-gray-800 px-2 py-1 text-xs text-white hover:bg-gray-700"
+                                        >
+                                            Set Balance
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -211,8 +253,8 @@ function DepositsTab({ deposits })
                 {deposits.map((d) => (
                     <div key={d.id} className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/50 p-4">
                         <div>
-                            <p className="font-mono text-xs text-gray-400">{d.userId}</p>
-                            <p className="text-sm text-white">${d.amount} \u2013 {d.status}</p>
+                            <p className="font-mono text-xs text-gray-400">{d.walletAddress || d.userId}</p>
+                            <p className="text-sm text-white">${d.amount} – {d.token} – {d.status}</p>
                         </div>
                         {d.status === 'pending' && (
                             <div className="flex gap-2">
@@ -237,8 +279,8 @@ function WithdrawalsTab({ withdrawals })
                 {withdrawals.map((w) => (
                     <div key={w.id} className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/50 p-4">
                         <div>
-                            <p className="font-mono text-xs text-gray-400">{w.userId}</p>
-                            <p className="text-sm text-white">${w.amount} \u2192 {w.toAddress} \u2013 {w.status}</p>
+                            <p className="font-mono text-xs text-gray-400">{w.walletAddress || w.userId}</p>
+                            <p className="text-sm text-white">${w.amount} {w.token} → {w.toAddress} – {w.status}</p>
                         </div>
                         {w.status === 'pending' && (
                             <div className="flex gap-2">
@@ -275,7 +317,7 @@ function TradesTab({ trades })
                         )}
                         {trades.map((t) => (
                             <tr key={t.id} className="border-b border-gray-800/50">
-                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{t.userId}</td>
+                                <td className="px-4 py-3 font-mono text-xs text-gray-400">{t.walletAddress || t.userId}</td>
                                 <td className="px-4 py-3 text-white">{t.pair}</td>
                                 <td className={`px-4 py-3 ${t.side === 'buy' ? 'text-green-400' : 'text-red-400'}`}>{t.side}</td>
                                 <td className="px-4 py-3 text-right text-white">${t.amount}</td>
@@ -320,7 +362,7 @@ function ChatsTab({ chats })
                 {chats.length === 0 && <p className="text-sm text-gray-600">No active chats</p>}
                 {chats.map((c) => (
                     <div key={c.id} className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-                        <p className="font-mono text-xs text-gray-400">{c.userId}</p>
+                        <p className="font-mono text-xs text-gray-400">{c.walletAddress || c.userId}</p>
                         <p className="mt-1 text-sm text-white">{c.lastMessage}</p>
                     </div>
                 ))}
@@ -353,6 +395,17 @@ function AdminsTab({ admins })
 
 function SettingsTab()
 {
+    const [platformName, setPlatformName] = useState('OnchainWeb');
+    const [maintenance, setMaintenance] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    function handleSave()
+    {
+        // Persist settings — extend with a real API call as needed
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+    }
+
     return (
         <div>
             <h3 className="mb-4 text-lg font-bold">Site Settings</h3>
@@ -361,19 +414,33 @@ function SettingsTab()
                     <label className="text-sm text-gray-400">Platform Name</label>
                     <input
                         type="text"
-                        defaultValue="OnchainWeb"
-                        className="mt-1 w-full rounded-lg bg-gray-800 px-4 py-2 text-white outline-none"
+                        value={platformName}
+                        onChange={(e) => setPlatformName(e.target.value)}
+                        className="mt-1 w-full rounded-lg bg-gray-800 px-4 py-2 text-white outline-none focus:ring-1 focus:ring-violet-500"
                     />
                 </div>
                 <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
                     <label className="text-sm text-gray-400">Maintenance Mode</label>
                     <div className="mt-2 flex gap-3">
-                        <button className="rounded-lg bg-gray-800 px-4 py-2 text-sm text-white">Off</button>
-                        <button className="rounded-lg bg-red-600/20 px-4 py-2 text-sm text-red-400">On</button>
+                        <button
+                            onClick={() => setMaintenance(false)}
+                            className={`rounded-lg px-4 py-2 text-sm ${!maintenance ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'}`}
+                        >
+                            Off
+                        </button>
+                        <button
+                            onClick={() => setMaintenance(true)}
+                            className={`rounded-lg px-4 py-2 text-sm ${maintenance ? 'bg-red-600 text-white' : 'bg-red-600/20 text-red-400'}`}
+                        >
+                            On
+                        </button>
                     </div>
                 </div>
-                <button className="rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-violet-500">
-                    Save Settings
+                <button
+                    onClick={handleSave}
+                    className="rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
+                >
+                    {saved ? '✓ Saved' : 'Save Settings'}
                 </button>
             </div>
         </div>

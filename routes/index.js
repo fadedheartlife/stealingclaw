@@ -3,13 +3,17 @@
 const express = require('express');
 const router = express.Router();
 
-// Mounting all route modules
-const usersRouter = require('./users');
-const productsRouter = require('./products');
-const ordersRouter = require('./orders');
+// Mount all route modules
+const authRouter = require('./authRoutes');
+const adminRouter = require('./adminRoutes');
+const tradingRouter = require('./tradingRoutes');
+const walletRouter = require('./walletRoutes');
+const withdrawalRouter = require('./withdrawalRoutes');
 
-router.use('/users', usersRouter);
-router.use('/products', productsRouter);
-router.use('/orders', ordersRouter);
+router.use('/auth', authRouter);
+router.use('/admin', adminRouter);
+router.use('/trading', tradingRouter);
+router.use('/wallet', walletRouter);
+router.use('/withdrawals', withdrawalRouter);
 
 module.exports = router;

@@ -107,11 +107,11 @@ export async function getAdminById(id)
 export async function upsertAdmin(id, data)
 {
     const query = new Parse.Query(Parse.User);
-    const user = await query.get(id);
+    const user = await query.get(id, { useMasterKey: true });
     if (data.role) user.set('role', data.role);
     if (data.permissions) user.set('permissions', data.permissions);
     if (data.email) user.set('email', data.email);
-    await user.save(null, { useMasterKey: false });
+    await user.save(null, { useMasterKey: true });
 }
 
 /** Check if current user has a specific permission */

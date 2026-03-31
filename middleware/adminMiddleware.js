@@ -6,7 +6,7 @@ const adminMiddleware = (req, res, next) => {
     const token = req.headers['authorization'] && req.headers['authorization'].split(' ')[1];
 
     if (!token) {
-        return res.status(403).json({ message: 'Token is required for authorization.' });
+        return res.status(401).json({ message: 'Token is required for authorization.' });
     }
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
