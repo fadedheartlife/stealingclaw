@@ -151,6 +151,7 @@ function UsersTab({ users })
                 <table className="w-full text-sm">
                     <thead className="border-b border-gray-800 bg-gray-900/50 text-xs text-gray-500">
                         <tr>
+                            <th className="px-4 py-3 text-left">UID</th>
                             <th className="px-4 py-3 text-left">Address</th>
                             <th className="px-4 py-3 text-right">Balance (USD)</th>
                             <th className="px-4 py-3 text-center">KYC</th>
@@ -160,13 +161,16 @@ function UsersTab({ users })
                     <tbody>
                         {users.length === 0 && (
                             <tr>
-                                <td colSpan={4} className="py-8 text-center text-gray-600">No users yet</td>
+                                <td colSpan={5} className="py-8 text-center text-gray-600">No users yet</td>
                             </tr>
                         )}
                         {users.map((u) => (
                             <tr key={u.id} className="border-b border-gray-800/50 hover:bg-gray-800/20">
+                                <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                                    {u.id}
+                                </td>
                                 <td className="px-4 py-3 font-mono text-xs text-violet-400">
-                                    {u.address || u.id}
+                                    {u.address || '—'}
                                 </td>
                                 <td className="px-4 py-3 text-right text-white">
                                     ${(u.balance ?? 0).toLocaleString()}

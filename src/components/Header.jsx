@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { APP_NAME } from '@/config/constants';
 
-export default function Header({ address, onConnectClick, onDisconnect })
+export default function Header({ address, userId, onConnectClick, onDisconnect })
 {
     const [menuOpen, setMenuOpen] = useState(false);
     const location = useLocation();
@@ -43,9 +43,16 @@ export default function Header({ address, onConnectClick, onDisconnect })
                 <div className="flex items-center gap-3">
                     {address ? (
                         <div className="flex items-center gap-2">
-                            <span className="hidden rounded-lg bg-gray-800 px-3 py-1.5 font-mono text-xs text-violet-400 sm:block">
-                                {address.slice(0, 6)}...{address.slice(-4)}
-                            </span>
+                            <div className="hidden flex-col items-end sm:flex">
+                                <span className="rounded-lg bg-gray-800 px-3 py-1.5 font-mono text-xs text-violet-400">
+                                    {address.slice(0, 6)}...{address.slice(-4)}
+                                </span>
+                                {userId && (
+                                    <span className="mt-0.5 px-3 font-mono text-[10px] text-gray-500">
+                                        UID: {userId}
+                                    </span>
+                                )}
+                            </div>
                             <button
                                 onClick={onDisconnect}
                                 className="rounded-lg bg-red-600/20 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-600/30"

@@ -10,7 +10,7 @@ import
         createWithdrawal,
     } from '@/services/database';
 
-export default function Wallet({ walletAddress, walletProvider })
+export default function Wallet({ walletAddress, walletProvider, userId })
 {
     const [activeTab, setActiveTab] = useState('assets');
     const [portfolio, setPortfolio] = useState(null);
@@ -120,6 +120,9 @@ export default function Wallet({ walletAddress, walletProvider })
                     <div>
                         <p className="text-sm text-gray-400">Connected via {walletProvider || 'Unknown'}</p>
                         <p className="mt-1 font-mono text-lg text-violet-400">{shortenAddress(walletAddress, 6)}</p>
+                        {userId && (
+                            <p className="mt-1 font-mono text-xs text-gray-500">UID: {userId}</p>
+                        )}
                     </div>
                     <div className="text-right">
                         <p className="text-sm text-gray-400">Total Balance</p>
