@@ -374,3 +374,39 @@ export async function registerWalletUser(walletAddress, provider)
     await user.save();
     return toPlain(user);
 }
+
+/* ================================================================
+   SYSTEM SETTINGS
+   Stored as a single 'SystemSettings' object in Back4App.
+   ================================================================ */
+
+/** Fetch the global system settings object */
+export async function getSystemSettings()
+{
+    const q = new Parse.Query('SystemSettings');
+    q.equalTo('key', 'global');
+    const record = await q.first();
+    return record ? toPlain(record) : null;
+}
+
+/** Save (upsert) system settings */
+export async function saveSystemSettings(settings)
+{
+    const q = new Parse.Query('SystemSettings');
+    q.equalTo('key', 'global');
+    let record = await q.first();
+
+    if (!record) {
+        const SystemSettingsClass = Parse.Object.extend('SystemSettings');
+        record = new SystemSettingsClass();
+        record.set('key', 'global');
+    }
+
+    const allowed = ['platformName', 'maintenanceMode', 'maxWithdrawalAmount', 'minDepositAmount', 'supportEmail'];
+    for (const key of allowed) {
+        if (key in settings) record.set(key, settings[key]);
+    }
+
+    await record.save(null, { useMasterKey: true });
+    return toPlain(record);
+}

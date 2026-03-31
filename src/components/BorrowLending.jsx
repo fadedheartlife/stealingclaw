@@ -38,6 +38,35 @@ export default function BorrowLending({ walletAddress })
         }
     };
 
+    const userSupply = userPositions
+        .filter((p) => p.type === 'lend')
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    const userBorrow = userPositions
+        .filter((p) => p.type === 'borrow')
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    // Weighted average net APY based on matched pool rates
+    const lendApy = userPositions
+        .filter((p) => p.type === 'lend')
+        .reduce((sum, p) =>
+        {
+            const pool = pools.find((pl) => pl.asset === p.pair?.split('/')[0]);
+            return sum + (pool ? parseFloat(pool.supplyApy) * (p.amount || 0) : 0);
+        }, 0);
+
+    const borrowApy = userPositions
+        .filter((p) => p.type === 'borrow')
+        .reduce((sum, p) =>
+        {
+            const pool = pools.find((pl) => pl.asset === p.pair?.split('/')[0]);
+            return sum + (pool ? parseFloat(pool.borrowApy) * (p.amount || 0) : 0);
+        }, 0);
+
+    const netApy = userSupply > 0 || userBorrow > 0
+        ? ((lendApy - borrowApy) / (userSupply + userBorrow || 1)).toFixed(1)
+        : '0.0';
+
     const pools = [
         { asset: 'USDC', supplyApy: '4.2%', borrowApy: '6.8%', tvl: '$12.4M', available: '$5.2M' },
         { asset: 'ETH', supplyApy: '2.1%', borrowApy: '4.5%', tvl: '$8.7M', available: '$3.1M' },
@@ -71,15 +100,15 @@ export default function BorrowLending({ walletAddress })
             <div className="grid grid-cols-3 gap-4">
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
                     <p className="text-xs text-gray-500">Your Supply</p>
-                    <p className="mt-1 text-lg font-bold text-white">$0.00</p>
+                    <p className="mt-1 text-lg font-bold text-white">${userSupply.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
                     <p className="text-xs text-gray-500">Your Borrow</p>
-                    <p className="mt-1 text-lg font-bold text-white">$0.00</p>
+                    <p className="mt-1 text-lg font-bold text-white">${userBorrow.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
                     <p className="text-xs text-gray-500">Net APY</p>
-                    <p className="mt-1 text-lg font-bold text-green-400">0.0%</p>
+                    <p className="mt-1 text-lg font-bold text-green-400">{netApy}%</p>
                 </div>
             </div>
 

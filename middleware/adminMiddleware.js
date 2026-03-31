@@ -6,7 +6,7 @@ const adminMiddleware = (req, res, next) => {
     const token = req.headers['authorization'] && req.headers['authorization'].split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ message: 'Token is required for authorization.' });
+        return res.status(401).json({ message: 'Token is required for authentication.' });
     }
 
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
@@ -16,6 +16,7 @@ const adminMiddleware = (req, res, next) => {
 
         // Attach user info to request for use in other routes
         req.user = decoded;
+        req.userId = decoded.id;
         next();
     });
 };

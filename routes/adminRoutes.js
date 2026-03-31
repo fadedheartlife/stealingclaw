@@ -5,6 +5,7 @@ const { adminLimiter } = require('../middleware/rateLimitMiddleware');
 
 const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
+const SystemSettings = require('../models/SystemSettings');
 
 // Apply rate limiting and admin auth to all routes in this file
 router.use(adminLimiter);
@@ -52,7 +53,7 @@ router.patch('/withdrawals/:id/approve', async (req, res) => {
     try {
         const withdrawal = await Withdrawal.findByIdAndUpdate(
             id,
-            { status: 'approved', approvedBy: req.user.id },
+            { status: 'approved', approvedBy: req.userId },
             { new: true }
         );
         if (!withdrawal) return res.status(404).json({ message: 'Withdrawal not found' });
@@ -68,7 +69,7 @@ router.patch('/withdrawals/:id/reject', async (req, res) => {
     try {
         const withdrawal = await Withdrawal.findByIdAndUpdate(
             id,
-            { status: 'rejected', approvedBy: req.user.id },
+            { status: 'rejected', approvedBy: req.userId },
             { new: true }
         );
         if (!withdrawal) return res.status(404).json({ message: 'Withdrawal not found' });
@@ -80,9 +81,17 @@ router.patch('/withdrawals/:id/reject', async (req, res) => {
 
 // System Control Endpoints
 
-// GET system status
-router.get('/status', (req, res) => {
-    res.status(200).json({ status: 'System is operational', timestamp: new Date().toISOString() });
+// GET current system settings
+router.get('/settings', async (req, res) => {
+    try {
+        let settings = await SystemSettings.findOne({ key: 'global' });
+        if (!settings) {
+            settings = await SystemSettings.create({ key: 'global' });
+        }
+        res.status(200).json(settings);
+    } catch (error) {
+        res.status(500).json({ message: 'Error retrieving system settings', error: error.message });
+    }
 });
 
 // PUT to update system settings
@@ -91,12 +100,26 @@ router.put('/settings', async (req, res) => {
     if (!settings || typeof settings !== 'object') {
         return res.status(400).json({ message: 'Invalid settings payload' });
     }
+    const allowed = ['platformName', 'maintenanceMode', 'maxWithdrawalAmount', 'minDepositAmount', 'supportEmail'];
+    const updates = {};
+    for (const key of allowed) {
+        if (key in settings) updates[key] = settings[key];
+    }
     try {
-        // Update system settings logic here
-        res.status(200).json({ message: 'System settings updated' });
+        const updated = await SystemSettings.findOneAndUpdate(
+            { key: 'global' },
+            { $set: updates },
+            { new: true, upsert: true }
+        );
+        res.status(200).json({ message: 'System settings updated', settings: updated });
     } catch (error) {
         res.status(500).json({ message: 'Error updating system settings', error: error.message });
     }
+});
+
+// GET system status
+router.get('/status', (req, res) => {
+    res.status(200).json({ status: 'System is operational', timestamp: new Date().toISOString() });
 });
 
 module.exports = router;

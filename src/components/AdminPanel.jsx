@@ -13,6 +13,8 @@ import
     updateKycStatus,
     subscribeToTradingLevelConfigs,
     saveTradingLevelConfig,
+    getSystemSettings,
+    saveSystemSettings,
 } from '@/services/database';
 import { DEFAULT_BINARY_LEVELS, DEFAULT_ARBITRAGE_LEVELS } from '@/config/constants';
 import { useNavigate } from 'react-router-dom';
@@ -397,18 +399,55 @@ function SettingsTab()
 {
     const [platformName, setPlatformName] = useState('OnchainWeb');
     const [maintenance, setMaintenance] = useState(false);
+    const [maxWithdrawal, setMaxWithdrawal] = useState(100000);
+    const [minDeposit, setMinDeposit] = useState(1);
+    const [supportEmail, setSupportEmail] = useState('');
+    const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [loadError, setLoadError] = useState(null);
 
-    function handleSave()
+    // Load current settings from Back4App on mount
+    useEffect(() =>
     {
-        // Persist settings — extend with a real API call as needed
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+        getSystemSettings().then((s) =>
+        {
+            if (s) {
+                setPlatformName(s.platformName ?? 'OnchainWeb');
+                setMaintenance(s.maintenanceMode ?? false);
+                setMaxWithdrawal(s.maxWithdrawalAmount ?? 100000);
+                setMinDeposit(s.minDepositAmount ?? 1);
+                setSupportEmail(s.supportEmail ?? '');
+            }
+        }).catch(() => setLoadError('Failed to load settings.'));
+    }, []);
+
+    async function handleSave()
+    {
+        setSaving(true);
+        setLoadError(null);
+        try {
+            await saveSystemSettings({
+                platformName,
+                maintenanceMode: maintenance,
+                maxWithdrawalAmount: maxWithdrawal,
+                minDepositAmount: minDeposit,
+                supportEmail,
+            });
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+        } catch {
+            setLoadError('Failed to save settings.');
+        } finally {
+            setSaving(false);
+        }
     }
 
     return (
         <div>
             <h3 className="mb-4 text-lg font-bold">Site Settings</h3>
+            {loadError && (
+                <div className="mb-4 rounded-lg bg-red-900/20 px-4 py-2 text-sm text-red-400">{loadError}</div>
+            )}
             <div className="space-y-4">
                 <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
                     <label className="text-sm text-gray-400">Platform Name</label>
@@ -418,6 +457,38 @@ function SettingsTab()
                         onChange={(e) => setPlatformName(e.target.value)}
                         className="mt-1 w-full rounded-lg bg-gray-800 px-4 py-2 text-white outline-none focus:ring-1 focus:ring-violet-500"
                     />
+                </div>
+                <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
+                    <label className="text-sm text-gray-400">Support Email</label>
+                    <input
+                        type="email"
+                        value={supportEmail}
+                        onChange={(e) => setSupportEmail(e.target.value)}
+                        placeholder="support@example.com"
+                        className="mt-1 w-full rounded-lg bg-gray-800 px-4 py-2 text-white outline-none focus:ring-1 focus:ring-violet-500"
+                    />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
+                        <label className="text-sm text-gray-400">Min Deposit ($)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            value={minDeposit}
+                            onChange={(e) => setMinDeposit(Number(e.target.value))}
+                            className="mt-1 w-full rounded-lg bg-gray-800 px-4 py-2 text-white outline-none focus:ring-1 focus:ring-violet-500"
+                        />
+                    </div>
+                    <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
+                        <label className="text-sm text-gray-400">Max Withdrawal ($)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            value={maxWithdrawal}
+                            onChange={(e) => setMaxWithdrawal(Number(e.target.value))}
+                            className="mt-1 w-full rounded-lg bg-gray-800 px-4 py-2 text-white outline-none focus:ring-1 focus:ring-violet-500"
+                        />
+                    </div>
                 </div>
                 <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
                     <label className="text-sm text-gray-400">Maintenance Mode</label>
@@ -438,9 +509,10 @@ function SettingsTab()
                 </div>
                 <button
                     onClick={handleSave}
-                    className="rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
+                    disabled={saving}
+                    className="rounded-xl bg-violet-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-violet-500 disabled:bg-gray-700"
                 >
-                    {saved ? '✓ Saved' : 'Save Settings'}
+                    {saved ? '✓ Saved' : saving ? 'Saving...' : 'Save Settings'}
                 </button>
             </div>
         </div>

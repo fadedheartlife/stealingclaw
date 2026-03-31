@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchTopCoins } from '@/services/prices';
-import { createTrade, subscribeToUserTrades } from '@/services/database';
+import { createTrade, subscribeToUserTrades, subscribeToUserPortfolio } from '@/services/database';
 import { formatCurrency, formatNumber, formatTimeAgo } from '@/utils/helpers';
 
 export default function Trade({ walletAddress })
@@ -9,9 +9,11 @@ export default function Trade({ walletAddress })
     const [selectedCoin, setSelectedCoin] = useState(null);
     const [orderType, setOrderType] = useState('buy');
     const [amount, setAmount] = useState('');
+    const [limitPrice, setLimitPrice] = useState('');
     const [orderMode, setOrderMode] = useState('market');
     const [submitting, setSubmitting] = useState(false);
     const [recentTrades, setRecentTrades] = useState([]);
+    const [availableBalance, setAvailableBalance] = useState(0);
 
     useEffect(() =>
     {
@@ -30,11 +32,32 @@ export default function Trade({ walletAddress })
         return unsub;
     }, [walletAddress]);
 
+    // Real-time user portfolio (for % buttons)
+    useEffect(() =>
+    {
+        if (!walletAddress) return;
+        const unsub = subscribeToUserPortfolio(walletAddress, (portfolio) =>
+        {
+            setAvailableBalance(portfolio?.balance ?? 0);
+        });
+        return unsub;
+    }, [walletAddress]);
+
+    function applyPercentage(pct)
+    {
+        if (!availableBalance) return;
+        const val = ((availableBalance * pct) / 100).toFixed(2);
+        setAmount(String(val));
+    }
+
     const handleSubmit = useCallback(
         async (e) =>
         {
             e.preventDefault();
             if (!selectedCoin || !amount || !walletAddress || submitting) return;
+            const price = orderMode === 'market'
+                ? selectedCoin.current_price
+                : Number(limitPrice) || selectedCoin.current_price;
             setSubmitting(true);
             try {
                 await createTrade({
@@ -42,17 +65,18 @@ export default function Trade({ walletAddress })
                     pair: `${selectedCoin.symbol.toUpperCase()}/USD`,
                     side: orderType,
                     amount: Number(amount),
-                    price: selectedCoin.current_price,
+                    price,
                     type: orderMode,
                 });
                 setAmount('');
+                setLimitPrice('');
             } catch (err) {
                 console.error('Trade failed:', err);
             } finally {
                 setSubmitting(false);
             }
         },
-        [selectedCoin, amount, orderType, orderMode, walletAddress, submitting]
+        [selectedCoin, amount, limitPrice, orderType, orderMode, walletAddress, submitting]
     );
 
     return (
@@ -172,6 +196,8 @@ export default function Trade({ walletAddress })
                             <input
                                 type="text"
                                 inputMode="decimal"
+                                value={limitPrice}
+                                onChange={(e) => setLimitPrice(e.target.value.replace(/[^0-9.]/g, ''))}
                                 placeholder={selectedCoin ? formatCurrency(selectedCoin.current_price) : '0.00'}
                                 className="w-full rounded-lg bg-gray-800 px-4 py-3 text-white outline-none focus:ring-1 focus:ring-violet-500"
                             />
@@ -179,7 +205,14 @@ export default function Trade({ walletAddress })
                     )}
 
                     <div>
-                        <label className="mb-1 block text-xs text-gray-400">Amount (USD)</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs text-gray-400">Amount (USD)</label>
+                            {availableBalance > 0 && (
+                                <span className="text-xs text-gray-500">
+                                    Balance: ${formatNumber(availableBalance)}
+                                </span>
+                            )}
+                        </div>
                         <input
                             type="text"
                             inputMode="decimal"
@@ -189,13 +222,15 @@ export default function Trade({ walletAddress })
                             className="w-full rounded-lg bg-gray-800 px-4 py-3 text-white outline-none focus:ring-1 focus:ring-violet-500"
                         />
                         <div className="mt-2 flex gap-2">
-                            {['25%', '50%', '75%', '100%'].map((pct) => (
+                            {[25, 50, 75, 100].map((pct) => (
                                 <button
                                     key={pct}
                                     type="button"
-                                    className="flex-1 rounded bg-gray-800 py-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-white"
+                                    onClick={() => applyPercentage(pct)}
+                                    disabled={!availableBalance}
+                                    className="flex-1 rounded bg-gray-800 py-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-40"
                                 >
-                                    {pct}
+                                    {pct}%
                                 </button>
                             ))}
                         </div>

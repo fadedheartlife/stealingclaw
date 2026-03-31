@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getTradeAnalysis } from '@/services/agent';
-import { subscribeToTradingLevelConfigs, subscribeToUserTrades } from '@/services/database';
+import { subscribeToTradingLevelConfigs, subscribeToUserTrades, createTrade } from '@/services/database';
 import { DEFAULT_ARBITRAGE_LEVELS } from '@/config/constants';
 import { formatNumber, formatTimeAgo } from '@/utils/helpers';
 
@@ -21,6 +21,7 @@ export default function AIArbitrage({ walletAddress })
     const [levels, setLevels] = useState(DEFAULT_ARBITRAGE_LEVELS);
     const [activeInvestments, setActiveInvestments] = useState({});
     const [tradeHistory, setTradeHistory] = useState([]);
+    const [investSubmitting, setInvestSubmitting] = useState({});
 
     // Load level configs from DB (with live updates)
     useEffect(() =>
@@ -59,21 +60,39 @@ export default function AIArbitrage({ walletAddress })
         }
     }
 
-    function handleInvest(level)
+    async function handleInvest(level)
     {
         const amount = Number(investAmounts[level.level] || '');
-        if (!amount || amount < level.minCapital) return;
-        // Record active investment locally (in a real app this would be persisted)
-        setActiveInvestments((prev) => ({
-            ...prev,
-            [level.level]: {
+        if (!amount || amount < level.minCapital || !walletAddress) return;
+        setInvestSubmitting((prev) => ({ ...prev, [level.level]: true }));
+        try {
+            await createTrade({
+                walletAddress,
+                pair: 'ARB/USD',
+                side: 'buy',
                 amount,
-                startedAt: Date.now(),
-                endAt: Date.now() + level.tradingTime * 1000,
-                profit: (amount * level.profitPercent) / 100,
-            },
-        }));
-        setInvestAmounts((prev) => ({ ...prev, [level.level]: '' }));
+                price: 0,
+                type: 'arbitrage',
+                level: level.level,
+                profitPercent: level.profitPercent,
+                timeframe: level.tradingTime,
+            });
+            // Track active investment locally for the duration display
+            setActiveInvestments((prev) => ({
+                ...prev,
+                [level.level]: {
+                    amount,
+                    startedAt: Date.now(),
+                    endAt: Date.now() + level.tradingTime * 1000,
+                    profit: (amount * level.profitPercent) / 100,
+                },
+            }));
+            setInvestAmounts((prev) => ({ ...prev, [level.level]: '' }));
+        } catch (err) {
+            console.error('Arbitrage invest failed:', err);
+        } finally {
+            setInvestSubmitting((prev) => ({ ...prev, [level.level]: false }));
+        }
     }
 
     const riskLabel = (lvl) =>
@@ -229,10 +248,10 @@ export default function AIArbitrage({ walletAddress })
                                             )}
                                             <button
                                                 onClick={() => handleInvest(lvl)}
-                                                disabled={!walletAddress || !investAmounts[lvl.level] || belowMin}
+                                                disabled={!walletAddress || !investAmounts[lvl.level] || belowMin || investSubmitting[lvl.level]}
                                                 className="w-full rounded-lg bg-violet-600 py-1.5 text-xs font-medium text-white hover:bg-violet-500 disabled:bg-gray-700 disabled:text-gray-500"
                                             >
-                                                {!walletAddress ? 'Connect' : 'Invest'}
+                                                {investSubmitting[lvl.level] ? 'Investing...' : !walletAddress ? 'Connect' : 'Invest'}
                                             </button>
                                         </div>
                                     </div>
