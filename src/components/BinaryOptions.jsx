@@ -1,15 +1,36 @@
 import { useState, useEffect, useCallback } from 'react';
-import { createTrade, subscribeToUserTrades } from '@/services/database';
+import { createTrade, subscribeToUserTrades, subscribeToTradingLevelConfigs } from '@/services/database';
 import { formatNumber, formatTimeAgo } from '@/utils/helpers';
+import { DEFAULT_BINARY_LEVELS } from '@/config/constants';
+
+function formatTime(seconds)
+{
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${seconds / 60}m`;
+    return `${seconds / 3600}h`;
+}
 
 export default function BinaryOptions({ walletAddress })
 {
     const [direction, setDirection] = useState('up');
     const [amount, setAmount] = useState('');
-    const [timeframe, setTimeframe] = useState(60);
+    const [selectedLevel, setSelectedLevel] = useState(1);
     const [countdown, setCountdown] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [history, setHistory] = useState([]);
+    const [levels, setLevels] = useState(DEFAULT_BINARY_LEVELS);
+
+    // Load level configs from DB (with live updates)
+    useEffect(() =>
+    {
+        const unsub = subscribeToTradingLevelConfigs('binary', (dbLevels) =>
+        {
+            if (dbLevels && dbLevels.length === 5) {
+                setLevels(dbLevels.sort((a, b) => a.level - b.level));
+            }
+        });
+        return unsub;
+    }, []);
 
     useEffect(() =>
     {
@@ -21,14 +42,6 @@ export default function BinaryOptions({ walletAddress })
         return unsub;
     }, [walletAddress]);
 
-    const timeframes = [
-        { label: '30s', value: 30 },
-        { label: '1m', value: 60 },
-        { label: '5m', value: 300 },
-        { label: '15m', value: 900 },
-        { label: '1h', value: 3600 },
-    ];
-
     useEffect(() =>
     {
         if (countdown === null || countdown <= 0) return;
@@ -36,9 +49,12 @@ export default function BinaryOptions({ walletAddress })
         return () => clearInterval(timer);
     }, [countdown]);
 
+    const currentLevel = levels.find((l) => l.level === selectedLevel) || levels[0];
+
     const handleTrade = useCallback(async () =>
     {
         if (!amount || !walletAddress || submitting) return;
+        if (Number(amount) < currentLevel.minCapital) return;
         setSubmitting(true);
         try {
             await createTrade({
@@ -48,21 +64,23 @@ export default function BinaryOptions({ walletAddress })
                 amount: Number(amount),
                 price: 0,
                 type: 'binary',
-                timeframe,
+                timeframe: currentLevel.tradingTime,
+                level: currentLevel.level,
+                profitPercent: currentLevel.profitPercent,
             });
-            setCountdown(timeframe);
+            setCountdown(currentLevel.tradingTime);
             setAmount('');
         } catch (err) {
             console.error('Binary options trade failed:', err);
         } finally {
             setSubmitting(false);
         }
-    }, [amount, timeframe, walletAddress, submitting, direction]);
+    }, [amount, currentLevel, walletAddress, submitting, direction]);
 
     return (
-        <div className="mx-auto max-w-lg space-y-6">
+        <div className="mx-auto max-w-2xl space-y-6">
             <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 text-center">
-                <h2 className="mb-2 text-lg font-bold text-white">\ud83c\udfaf Binary Options</h2>
+                <h2 className="mb-2 text-lg font-bold text-white">🎯 Binary Options</h2>
                 <p className="text-sm text-gray-400">Predict price direction within a timeframe</p>
             </div>
 
@@ -75,9 +93,55 @@ export default function BinaryOptions({ walletAddress })
                     </p>
                     <p className="mt-1 text-sm text-gray-400">
                         Direction: <span className={direction === 'up' ? 'text-green-400' : 'text-red-400'}>
-                            {direction === 'up' ? '\ud83d\udcc8 UP' : '\ud83d\udcc9 DOWN'}
+                            {direction === 'up' ? '📈 UP' : '📉 DOWN'}
                         </span>
                     </p>
+                </div>
+            )}
+
+            {/* Level selection */}
+            <div>
+                <p className="mb-2 text-xs text-gray-400 font-medium uppercase tracking-wider">Select Level</p>
+                <div className="grid grid-cols-5 gap-2">
+                    {levels.map((lvl) => (
+                        <button
+                            key={lvl.level}
+                            onClick={() => setSelectedLevel(lvl.level)}
+                            className={`rounded-xl border p-3 text-center transition-colors ${selectedLevel === lvl.level
+                                ? 'border-violet-500 bg-violet-600/20 text-violet-300'
+                                : 'border-gray-800 bg-gray-900/50 text-gray-400 hover:border-gray-600'
+                            }`}
+                        >
+                            <p className="text-xs font-bold">Lv.{lvl.level}</p>
+                            <p className="mt-0.5 text-xs text-gray-500 truncate">{lvl.name}</p>
+                            <p className="mt-1 text-sm font-bold text-green-400">{lvl.profitPercent}%</p>
+                            <p className="text-xs text-gray-500">{formatTime(lvl.tradingTime)}</p>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Level details */}
+            {currentLevel && (
+                <div className="rounded-xl border border-violet-800/50 bg-violet-900/10 p-4">
+                    <div className="flex flex-wrap gap-4 text-sm">
+                        <div>
+                            <p className="text-xs text-gray-500">Level</p>
+                            <p className="font-bold text-white">{currentLevel.level} — {currentLevel.name}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Profit</p>
+                            <p className="font-bold text-green-400">{currentLevel.profitPercent}%</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Trading Time</p>
+                            <p className="font-bold text-white">{formatTime(currentLevel.tradingTime)}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Min Capital</p>
+                            <p className="font-bold text-white">${currentLevel.minCapital}</p>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -91,7 +155,7 @@ export default function BinaryOptions({ walletAddress })
                             : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                             }`}
                     >
-                        \ud83d\udcc8 UP
+                        📈 UP
                     </button>
                     <button
                         onClick={() => setDirection('down')}
@@ -100,36 +164,19 @@ export default function BinaryOptions({ walletAddress })
                             : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                             }`}
                     >
-                        \ud83d\udcc9 DOWN
+                        📉 DOWN
                     </button>
-                </div>
-
-                {/* Timeframe */}
-                <div>
-                    <label className="mb-2 block text-xs text-gray-400">Timeframe</label>
-                    <div className="flex gap-2">
-                        {timeframes.map((tf) => (
-                            <button
-                                key={tf.value}
-                                onClick={() => setTimeframe(tf.value)}
-                                className={`flex-1 rounded-lg py-2 text-xs font-medium ${timeframe === tf.value
-                                    ? 'bg-violet-600/20 text-violet-400'
-                                    : 'bg-gray-800 text-gray-500 hover:text-white'
-                                    }`}
-                            >
-                                {tf.label}
-                            </button>
-                        ))}
-                    </div>
                 </div>
 
                 {/* Amount */}
                 <div>
-                    <label className="mb-1 block text-xs text-gray-400">Amount (USD)</label>
+                    <label className="mb-1 block text-xs text-gray-400">
+                        Amount (USD) — Min ${currentLevel?.minCapital ?? 10}
+                    </label>
                     <input
                         type="text"
                         inputMode="decimal"
-                        placeholder="10.00"
+                        placeholder={`Min $${currentLevel?.minCapital ?? 10}`}
                         value={amount}
                         onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
                         className="w-full rounded-lg bg-gray-800 px-4 py-3 text-white outline-none focus:ring-1 focus:ring-violet-500"
@@ -137,24 +184,43 @@ export default function BinaryOptions({ walletAddress })
                 </div>
 
                 {amount && (
-                    <div className="rounded-lg bg-gray-800/50 p-3 text-xs text-gray-400">
+                    <div className="rounded-lg bg-gray-800/50 p-3 text-xs text-gray-400 space-y-1">
                         <div className="flex justify-between">
-                            <span>Potential Profit (85%)</span>
-                            <span className="text-green-400">${(Number(amount) * 0.85).toFixed(2)}</span>
+                            <span>Potential Profit ({currentLevel?.profitPercent ?? 85}%)</span>
+                            <span className="text-green-400">
+                                ${(Number(amount) * (currentLevel?.profitPercent ?? 85) / 100).toFixed(2)}
+                            </span>
                         </div>
+                        <div className="flex justify-between">
+                            <span>Total Return</span>
+                            <span className="text-white">
+                                ${(Number(amount) * (1 + (currentLevel?.profitPercent ?? 85) / 100)).toFixed(2)}
+                            </span>
+                        </div>
+                        {Number(amount) < (currentLevel?.minCapital ?? 10) && (
+                            <p className="text-red-400">
+                                Minimum capital for Level {currentLevel?.level} is ${currentLevel?.minCapital}
+                            </p>
+                        )}
                     </div>
                 )}
 
                 <button
                     onClick={handleTrade}
-                    disabled={!amount || !walletAddress || submitting || (countdown !== null && countdown > 0)}
+                    disabled={
+                        !amount ||
+                        !walletAddress ||
+                        submitting ||
+                        (countdown !== null && countdown > 0) ||
+                        Number(amount) < (currentLevel?.minCapital ?? 10)
+                    }
                     className="w-full rounded-xl bg-violet-600 py-3 text-sm font-bold text-white hover:bg-violet-500 disabled:bg-gray-700 disabled:text-gray-500"
                 >
                     {submitting ? 'Placing...' : !walletAddress ? 'Connect Wallet' : 'Place Trade'}
                 </button>
             </div>
 
-            {/* Trade history \u2014 real-time */}
+            {/* Trade history — real-time */}
             {history.length > 0 && (
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
                     <h3 className="text-xs text-gray-500 mb-2">Recent Binary Trades</h3>
@@ -162,6 +228,7 @@ export default function BinaryOptions({ walletAddress })
                         {history.slice(0, 8).map((t) => (
                             <div key={t.id} className="flex justify-between text-xs py-1">
                                 <span className={t.side === 'buy' ? 'text-green-400' : 'text-red-400'}>{t.side === 'buy' ? 'UP' : 'DOWN'}</span>
+                                <span className="text-gray-500">Lv.{t.level ?? '—'}</span>
                                 <span className="text-white font-mono">${formatNumber(t.amount)}</span>
                                 <span className={t.status === 'filled' ? 'text-green-400' : 'text-yellow-400'}>{t.status}</span>
                                 <span className="text-gray-600">{formatTimeAgo(t.createdAt)}</span>

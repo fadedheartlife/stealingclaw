@@ -35,3 +35,4 @@ secrets/
 # Coverage / test output
 coverage/
 *.lcov
+package-lock.json

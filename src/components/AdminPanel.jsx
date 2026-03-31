@@ -11,7 +11,10 @@ import
     updateDepositStatus,
     updateWithdrawalStatus,
     updateKycStatus,
+    subscribeToTradingLevelConfigs,
+    saveTradingLevelConfig,
 } from '@/services/database';
+import { DEFAULT_BINARY_LEVELS, DEFAULT_ARBITRAGE_LEVELS } from '@/config/constants';
 import { useNavigate } from 'react-router-dom';
 
 export default function AdminPanel()
@@ -63,6 +66,7 @@ export default function AdminPanel()
         { key: 'chats', label: 'Support', perm: 'customerService' },
         { key: 'admins', label: 'Admins', perm: 'createAdmins' },
         { key: 'settings', label: 'Settings', perm: 'siteSettings' },
+        { key: 'tradingLevels', label: 'Trading Levels', perm: 'tradingLevels' },
     ].filter((t) => hasPermission(admin, t.perm));
 
     return (
@@ -113,6 +117,7 @@ export default function AdminPanel()
                     {activeTab === 'chats' && <ChatsTab chats={chats} />}
                     {activeTab === 'admins' && <AdminsTab admins={admins} />}
                     {activeTab === 'settings' && <SettingsTab />}
+                    {activeTab === 'tradingLevels' && <TradingLevelsTab />}
                 </div>
             </div>
         </div>
@@ -351,6 +356,187 @@ function SettingsTab()
                     Save Settings
                 </button>
             </div>
+        </div>
+    );
+}
+
+/* ---- Trading Levels Tab ---- */
+
+function LevelEditor({ type, defaultLevels, label })
+{
+    const [levels, setLevels] = useState(defaultLevels);
+    const [saving, setSaving] = useState({});
+    const [saved, setSaved] = useState({});
+    const [unsavedIndices, setUnsavedIndices] = useState(new Set());
+
+    useEffect(() =>
+    {
+        const unsub = subscribeToTradingLevelConfigs(type, (dbLevels) =>
+        {
+            if (dbLevels && dbLevels.length === 5) {
+                setLevels((prev) => {
+                    // Only update levels that don't have unsaved changes
+                    const sorted = dbLevels.sort((a, b) => a.level - b.level);
+                    if (unsavedIndices.size === 0) {
+                        // No unsaved changes, safe to update all
+                        return sorted;
+                    }
+                    // Merge: keep unsaved rows, update saved ones
+                    return prev.map((item, idx) => 
+                        unsavedIndices.has(idx) ? item : sorted[idx]
+                    );
+                });
+            }
+        });
+        return unsub;
+    }, [type, unsavedIndices]);
+
+    function handleChange(index, field, value)
+    {
+        // Mark this row as having unsaved changes
+        setUnsavedIndices((prev) => new Set([...prev, index]));
+        
+        // Convert numeric fields to numbers
+        const numericFields = ['profitPercent', 'tradingTime', 'minCapital'];
+        const finalValue = numericFields.includes(field) ? Number(value) : value;
+        
+        setLevels((prev) =>
+        {
+            const updated = [...prev];
+            updated[index] = { ...updated[index], [field]: finalValue };
+            return updated;
+        });
+    }
+
+    async function handleSave(index)
+    {
+        const lvl = levels[index];
+        const key = lvl.level;
+        setSaving((p) => ({ ...p, [key]: true }));
+        try {
+            await saveTradingLevelConfig({ type, ...lvl });
+            setSaved((p) => ({ ...p, [key]: true }));
+            // Clear unsaved flag for this row
+            setUnsavedIndices((prev) => {
+                const next = new Set(prev);
+                next.delete(index);
+                return next;
+            });
+            setTimeout(() => setSaved((p) => ({ ...p, [key]: false })), 2000);
+        } catch (err) {
+            console.error('Failed to save level config:', err);
+        } finally {
+            setSaving((p) => ({ ...p, [key]: false }));
+        }
+    }
+
+    async function handleSaveAll()
+    {
+        for (let i = 0; i < levels.length; i++) {
+            await handleSave(i);
+        }
+    }
+
+    return (
+        <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold text-white">{label}</h4>
+                <button
+                    onClick={handleSaveAll}
+                    className="rounded-lg bg-violet-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-violet-500"
+                >
+                    Save All
+                </button>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-gray-800">
+                <table className="w-full text-sm">
+                    <thead className="border-b border-gray-800 bg-gray-900/50 text-xs text-gray-500">
+                        <tr>
+                            <th className="px-4 py-3 text-left w-8">Lv.</th>
+                            <th className="px-4 py-3 text-left">Name</th>
+                            <th className="px-4 py-3 text-center">Profit %</th>
+                            <th className="px-4 py-3 text-center">Trading Time (s)</th>
+                            <th className="px-4 py-3 text-center">Min Capital ($)</th>
+                            <th className="px-4 py-3 text-center w-20">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {levels.map((lvl, i) => (
+                            <tr key={lvl.level} className="border-b border-gray-800/50 hover:bg-gray-800/20">
+                                <td className="px-4 py-3 text-center font-bold text-violet-400">{lvl.level}</td>
+                                <td className="px-4 py-3">
+                                    <input
+                                        type="text"
+                                        value={lvl.name}
+                                        onChange={(e) => handleChange(i, 'name', e.target.value)}
+                                        className="w-full rounded bg-gray-800 px-2 py-1 text-white outline-none focus:ring-1 focus:ring-violet-500"
+                                    />
+                                </td>
+                                <td className="px-4 py-3">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="999"
+                                        value={lvl.profitPercent}
+                                        onChange={(e) => handleChange(i, 'profitPercent', e.target.value)}
+                                        className="w-full rounded bg-gray-800 px-2 py-1 text-center text-green-400 outline-none focus:ring-1 focus:ring-violet-500"
+                                    />
+                                </td>
+                                <td className="px-4 py-3">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={lvl.tradingTime}
+                                        onChange={(e) => handleChange(i, 'tradingTime', e.target.value)}
+                                        className="w-full rounded bg-gray-800 px-2 py-1 text-center text-white outline-none focus:ring-1 focus:ring-violet-500"
+                                    />
+                                </td>
+                                <td className="px-4 py-3">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={lvl.minCapital}
+                                        onChange={(e) => handleChange(i, 'minCapital', e.target.value)}
+                                        className="w-full rounded bg-gray-800 px-2 py-1 text-center text-white outline-none focus:ring-1 focus:ring-violet-500"
+                                    />
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                    <button
+                                        onClick={() => handleSave(i)}
+                                        disabled={saving[lvl.level]}
+                                        className="rounded bg-violet-700 px-3 py-1 text-xs text-white hover:bg-violet-600 disabled:bg-gray-700"
+                                    >
+                                        {saved[lvl.level] ? '✓' : saving[lvl.level] ? '...' : 'Save'}
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <p className="mt-2 text-xs text-gray-600">
+                Trading Time is in seconds (e.g. 60 = 1 min, 3600 = 1 h, 86400 = 1 day).
+                Changes take effect immediately for all users.
+            </p>
+        </div>
+    );
+}
+
+function TradingLevelsTab()
+{
+    return (
+        <div>
+            <h3 className="mb-6 text-lg font-bold">Trading Level Configuration</h3>
+            <LevelEditor
+                type="binary"
+                defaultLevels={DEFAULT_BINARY_LEVELS}
+                label="🎯 Binary Options — 5 Levels"
+            />
+            <LevelEditor
+                type="arbitrage"
+                defaultLevels={DEFAULT_ARBITRAGE_LEVELS}
+                label="🤖 AI Arbitrage — 5 Levels"
+            />
         </div>
     );
 }
