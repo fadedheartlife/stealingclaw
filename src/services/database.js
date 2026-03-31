@@ -279,6 +279,79 @@ export async function createTrade({ walletAddress, pair, side, amount, price, ty
     return toPlain(trade);
 }
 
+/* ================================================================
+   TRADING LEVEL CONFIGS
+   Stored as TradingLevelConfig objects in Back4App.
+   type: 'binary' | 'arbitrage'
+   level: 1-5
+   ================================================================ */
+
+/**
+ * Fetch all trading level configs for a given type ('binary' or 'arbitrage').
+ * Returns an array of plain objects sorted by level.
+ */
+export async function getTradingLevelConfigs(type)
+{
+    const q = new Parse.Query('TradingLevelConfig');
+    q.equalTo('type', type);
+    q.ascending('level');
+    q.limit(10);
+    const results = await q.find();
+    return results.map(toPlain);
+}
+
+/**
+ * Subscribe to live updates of trading level configs.
+ */
+export function subscribeToTradingLevelConfigs(type, callback)
+{
+    const q = new Parse.Query('TradingLevelConfig');
+    q.equalTo('type', type);
+    q.ascending('level');
+    q.limit(10);
+
+    let sub = null;
+
+    q.find().then((r) => callback(r.map(toPlain)));
+
+    q.subscribe().then((subscription) =>
+    {
+        sub = subscription;
+        const refresh = () => q.find().then((r) => callback(r.map(toPlain)));
+        sub.on('create', refresh);
+        sub.on('update', refresh);
+        sub.on('delete', refresh);
+    });
+
+    return () => { if (sub) sub.unsubscribe(); };
+}
+
+/**
+ * Save (upsert) a single trading level config.
+ * @param {Object} cfg - { type, level, name, profitPercent, tradingTime, minCapital }
+ */
+export async function saveTradingLevelConfig(cfg)
+{
+    const q = new Parse.Query('TradingLevelConfig');
+    q.equalTo('type', cfg.type);
+    q.equalTo('level', cfg.level);
+    let record = await q.first();
+
+    if (!record) {
+        const TradingLevelConfig = Parse.Object.extend('TradingLevelConfig');
+        record = new TradingLevelConfig();
+        record.set('type', cfg.type);
+        record.set('level', cfg.level);
+    }
+
+    record.set('name', cfg.name);
+    record.set('profitPercent', Number(cfg.profitPercent));
+    record.set('tradingTime', Number(cfg.tradingTime));
+    record.set('minCapital', Number(cfg.minCapital));
+    await record.save();
+    return toPlain(record);
+}
+
 /** Register or update a user's wallet connection in Back4App */
 export async function registerWalletUser(walletAddress, provider)
 {
