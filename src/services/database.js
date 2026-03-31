@@ -262,7 +262,7 @@ export async function createWithdrawal({ walletAddress, amount, token, toAddress
 }
 
 /** Create a trade record */
-export async function createTrade({ walletAddress, pair, side, amount, price, type, leverage, timeframe })
+export async function createTrade({ walletAddress, pair, side, amount, price, type, leverage, timeframe, level, profitPercent })
 {
     const Trade = Parse.Object.extend('Trade');
     const trade = new Trade();
@@ -275,6 +275,8 @@ export async function createTrade({ walletAddress, pair, side, amount, price, ty
     trade.set('status', 'open');
     if (leverage) trade.set('leverage', leverage);
     if (timeframe) trade.set('timeframe', timeframe);
+    if (level) trade.set('level', level);
+    if (profitPercent) trade.set('profitPercent', Number(profitPercent));
     await trade.save();
     return toPlain(trade);
 }
