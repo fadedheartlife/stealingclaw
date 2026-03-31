@@ -72,7 +72,7 @@ export default function AdminPanel()
     return (
         <div className="min-h-screen bg-gray-950 text-white">
             {/* Top bar */}
-            <div className="flex items-center justify-between border-b border-gray-800 px-6 py-3">
+            <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
                 <div className="flex items-center gap-3">
                     <span className="text-lg font-bold">Admin Panel</span>
                     <span className="rounded-full bg-violet-600/20 px-2 py-0.5 text-xs font-medium text-violet-400">
@@ -80,7 +80,7 @@ export default function AdminPanel()
                     </span>
                 </div>
                 <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-500">{admin.username || admin.email}</span>
+                    <span className="hidden text-xs text-gray-500 sm:block">{admin.username || admin.email}</span>
                     <button
                         onClick={handleLogout}
                         className="rounded-lg bg-red-600/20 px-3 py-1.5 text-xs text-red-400 hover:bg-red-600/30"
@@ -90,9 +90,25 @@ export default function AdminPanel()
                 </div>
             </div>
 
+            {/* Mobile tab strip */}
+            <div className="flex overflow-x-auto border-b border-gray-800 md:hidden">
+                {tabs.map((t) => (
+                    <button
+                        key={t.key}
+                        onClick={() => setActiveTab(t.key)}
+                        className={`shrink-0 px-4 py-2.5 text-sm whitespace-nowrap ${activeTab === t.key
+                            ? 'border-b-2 border-violet-500 text-violet-400 font-medium'
+                            : 'text-gray-500 hover:text-white'
+                        }`}
+                    >
+                        {t.label}
+                    </button>
+                ))}
+            </div>
+
             <div className="flex">
-                {/* Sidebar */}
-                <div className="w-48 shrink-0 border-r border-gray-800 py-4">
+                {/* Desktop sidebar */}
+                <div className="hidden w-48 shrink-0 border-r border-gray-800 py-4 md:block">
                     {tabs.map((t) => (
                         <button
                             key={t.key}
@@ -108,7 +124,7 @@ export default function AdminPanel()
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 p-6">
+                <div className="flex-1 p-4 md:p-6">
                     {activeTab === 'users' && <UsersTab users={users} />}
                     {activeTab === 'deposits' && <DepositsTab deposits={deposits} />}
                     {activeTab === 'withdrawals' && <WithdrawalsTab withdrawals={withdrawals} />}
