@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -24,23 +24,56 @@ import AdminRouteGuard from './components/AdminRouteGuard';
 import AdminPanel from './components/AdminPanel';
 import { registerWalletUser } from './services/database';
 
+const SESSION_KEY = 'wallet_session';
+
+/** Persist the wallet session to localStorage */
+function saveSession(address, provider)
+{
+    try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ address, provider }));
+    } catch { /* ignore quota errors */ }
+}
+
+/** Remove the wallet session from localStorage */
+function clearSession()
+{
+    try {
+        localStorage.removeItem(SESSION_KEY);
+    } catch { /* ignore */ }
+}
+
+/** Read the persisted session (returns null if none) */
+function loadSession()
+{
+    try {
+        const raw = localStorage.getItem(SESSION_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
 export default function App()
 {
     const [walletModalOpen, setWalletModalOpen] = useState(false);
     const [connectedAddress, setConnectedAddress] = useState(null);
     const [walletProvider, setWalletProvider] = useState(null);
     const [toast, setToast] = useState(null);
+    const [autoConnecting, setAutoConnecting] = useState(true);
 
     const handleConnect = useCallback(async (address, provider) =>
     {
-        setConnectedAddress(address);
+        // Addresses are stored and compared in lowercase throughout the app
+        const normalized = address.toLowerCase();
+        setConnectedAddress(normalized);
         setWalletProvider(provider || 'Unknown');
         setWalletModalOpen(false);
         setToast({ type: 'success', message: 'Wallet connected' });
+        saveSession(normalized, provider || 'Unknown');
 
         // Register / update user in Back4App (real-time tracked)
         try {
-            await registerWalletUser(address, provider || 'Unknown');
+            await registerWalletUser(normalized, provider || 'Unknown');
         } catch (err) {
             console.error('Failed to register user:', err);
         }
@@ -50,8 +83,107 @@ export default function App()
     {
         setConnectedAddress(null);
         setWalletProvider(null);
+        clearSession();
         setToast({ type: 'info', message: 'Wallet disconnected' });
     }, []);
+
+    // ── Auto-reconnect on page load ──────────────────────────────────────────
+    useEffect(() =>
+    {
+        async function tryAutoConnect()
+        {
+            const session = loadSession();
+            if (!session?.address) {
+                setAutoConnecting(false);
+                return;
+            }
+
+            // For injected wallets (MetaMask, Brave, etc.) verify the account is
+            // still authorized without triggering a popup (eth_accounts vs eth_requestAccounts).
+            const needsInjectedCheck =
+                session.provider !== 'WalletConnect' &&
+                session.provider !== 'Ledger' &&
+                session.provider !== 'Safe';
+
+            if (needsInjectedCheck && window.ethereum) {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    // Only restore if the saved address is still authorized
+                    if (!accounts || !accounts.map((a) => a.toLowerCase()).includes(session.address)) {
+                        clearSession();
+                        setAutoConnecting(false);
+                        return;
+                    }
+                } catch {
+                    // eth_accounts threw an unexpected error (provider bug, etc.).
+                    // A locked wallet returns an empty array instead of throwing, so
+                    // this path means the extension itself is unavailable. Clear the
+                    // session to avoid a stale connection badge.
+                    clearSession();
+                    setAutoConnecting(false);
+                    return;
+                }
+            }
+
+            // Restore the session
+            setConnectedAddress(session.address);
+            setWalletProvider(session.provider);
+
+            // Refresh lastSeen in the database (keeps user data live)
+            try {
+                await registerWalletUser(session.address, session.provider);
+            } catch (err) {
+                console.error('Failed to refresh user on auto-connect:', err);
+            }
+
+            setAutoConnecting(false);
+        }
+
+        tryAutoConnect();
+    }, []); // run once on mount
+
+    // ── Listen for account/chain changes from the injected wallet ────────────
+    useEffect(() =>
+    {
+        if (!window.ethereum) return;
+
+        function onAccountsChanged(accounts)
+        {
+            if (!accounts || accounts.length === 0) {
+                // User disconnected from wallet extension
+                handleDisconnect();
+            } else {
+                const newAddress = accounts[0].toLowerCase();
+                // Only act if a session was already active
+                setConnectedAddress((current) =>
+                {
+                    if (current && current !== newAddress) {
+                        // Switched to a different account — update session
+                        setWalletProvider((provider) =>
+                        {
+                            saveSession(newAddress, provider);
+                            registerWalletUser(newAddress, provider).catch(console.error);
+                            return provider;
+                        });
+                        setToast({ type: 'info', message: 'Wallet account changed' });
+                        return newAddress;
+                    }
+                    return current;
+                });
+            }
+        }
+
+        window.ethereum.on('accountsChanged', onAccountsChanged);
+        return () => window.ethereum.removeListener('accountsChanged', onAccountsChanged);
+    }, [handleDisconnect]);
+
+    if (autoConnecting) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-gray-950 text-white">
+                <span className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+            </div>
+        );
+    }
 
     return (
         <ErrorBoundary>
