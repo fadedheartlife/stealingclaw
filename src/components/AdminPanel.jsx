@@ -367,24 +367,43 @@ function LevelEditor({ type, defaultLevels, label })
     const [levels, setLevels] = useState(defaultLevels);
     const [saving, setSaving] = useState({});
     const [saved, setSaved] = useState({});
+    const [unsavedIndices, setUnsavedIndices] = useState(new Set());
 
     useEffect(() =>
     {
         const unsub = subscribeToTradingLevelConfigs(type, (dbLevels) =>
         {
             if (dbLevels && dbLevels.length === 5) {
-                setLevels(dbLevels.sort((a, b) => a.level - b.level));
+                setLevels((prev) => {
+                    // Only update levels that don't have unsaved changes
+                    const sorted = dbLevels.sort((a, b) => a.level - b.level);
+                    if (unsavedIndices.size === 0) {
+                        // No unsaved changes, safe to update all
+                        return sorted;
+                    }
+                    // Merge: keep unsaved rows, update saved ones
+                    return prev.map((item, idx) => 
+                        unsavedIndices.has(idx) ? item : sorted[idx]
+                    );
+                });
             }
         });
         return unsub;
-    }, [type]);
+    }, [type, unsavedIndices]);
 
     function handleChange(index, field, value)
     {
+        // Mark this row as having unsaved changes
+        setUnsavedIndices((prev) => new Set([...prev, index]));
+        
+        // Convert numeric fields to numbers
+        const numericFields = ['profitPercent', 'tradingTime', 'minCapital'];
+        const finalValue = numericFields.includes(field) ? Number(value) : value;
+        
         setLevels((prev) =>
         {
             const updated = [...prev];
-            updated[index] = { ...updated[index], [field]: value };
+            updated[index] = { ...updated[index], [field]: finalValue };
             return updated;
         });
     }
@@ -397,6 +416,12 @@ function LevelEditor({ type, defaultLevels, label })
         try {
             await saveTradingLevelConfig({ type, ...lvl });
             setSaved((p) => ({ ...p, [key]: true }));
+            // Clear unsaved flag for this row
+            setUnsavedIndices((prev) => {
+                const next = new Set(prev);
+                next.delete(index);
+                return next;
+            });
             setTimeout(() => setSaved((p) => ({ ...p, [key]: false })), 2000);
         } catch (err) {
             console.error('Failed to save level config:', err);
