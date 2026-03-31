@@ -10,7 +10,7 @@ import
         createWithdrawal,
     } from '@/services/database';
 
-export default function Wallet({ walletAddress, walletProvider })
+export default function Wallet({ walletAddress, walletProvider, userId })
 {
     const [activeTab, setActiveTab] = useState('assets');
     const [portfolio, setPortfolio] = useState(null);
@@ -91,6 +91,8 @@ export default function Wallet({ walletAddress, walletProvider })
     const networks = ['Ethereum', 'BSC', 'Polygon', 'Arbitrum', 'Base'];
     const tokens = ['USDT', 'BTC', 'ETH', 'BNB', 'MATIC', 'USDC'];
 
+    const [historyFilter, setHistoryFilter] = useState('all');
+
     const tabs = [
         { id: 'assets', label: 'Assets' },
         { id: 'deposit', label: 'Deposit' },
@@ -118,6 +120,9 @@ export default function Wallet({ walletAddress, walletProvider })
                     <div>
                         <p className="text-sm text-gray-400">Connected via {walletProvider || 'Unknown'}</p>
                         <p className="mt-1 font-mono text-lg text-violet-400">{shortenAddress(walletAddress, 6)}</p>
+                        {userId && (
+                            <p className="mt-1 font-mono text-xs text-gray-500">UID: {userId}</p>
+                        )}
                     </div>
                     <div className="text-right">
                         <p className="text-sm text-gray-400">Total Balance</p>
@@ -256,13 +261,34 @@ export default function Wallet({ walletAddress, walletProvider })
                 {/* HISTORY TAB */}
                 {activeTab === 'history' && (
                     <div>
+                        {/* Filter buttons */}
+                        <div className="mb-3 flex gap-1 flex-wrap">
+                            {[
+                                { value: 'all', label: 'All' },
+                                { value: 'deposit', label: 'Deposits' },
+                                { value: 'withdrawal', label: 'Withdrawals' },
+                                { value: 'trade', label: 'Trades' },
+                            ].map((f) => (
+                                <button
+                                    key={f.value}
+                                    onClick={() => setHistoryFilter(f.value)}
+                                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${historyFilter === f.value
+                                        ? 'bg-violet-600/30 text-violet-400'
+                                        : 'bg-gray-800 text-gray-500 hover:text-white'
+                                    }`}
+                                >
+                                    {f.label}
+                                </button>
+                            ))}
+                        </div>
                         {trades.length > 0 || deposits.length > 0 || withdrawals.length > 0 ? (
-                            <div className="space-y-1 max-h-96 overflow-y-auto">
+                            <div className="space-y-1 max-h-[60vh] overflow-y-auto">
                                 {[
                                     ...deposits.map((d) => ({ ...d, _type: 'deposit' })),
                                     ...withdrawals.map((w) => ({ ...w, _type: 'withdrawal' })),
                                     ...trades.map((t) => ({ ...t, _type: 'trade' })),
                                 ]
+                                    .filter((item) => historyFilter === 'all' || item._type === historyFilter)
                                     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                                     .map((item) => (
                                         <div key={`${item._type}-${item.id}`} className="flex items-center justify-between rounded-lg px-3 py-2 text-xs hover:bg-gray-800/30">
@@ -280,7 +306,7 @@ export default function Wallet({ walletAddress, walletProvider })
                             </div>
                         ) : (
                             <div className="text-center py-10 text-gray-500">
-                                <p className="text-4xl mb-2">\ud83d\udccb</p>
+                                <p className="text-4xl mb-2">📋</p>
                                 <p>No transaction history yet.</p>
                             </div>
                         )}
