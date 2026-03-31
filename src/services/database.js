@@ -67,33 +67,33 @@ export function subscribeToActiveChats(callback)
 export async function updateUserBalance(userId, newBalance)
 {
     const q = new Parse.Query('AppUser');
-    const user = await q.get(userId);
+    const user = await q.get(userId, { useMasterKey: true });
     user.set('balance', newBalance);
-    await user.save();
+    await user.save(null, { useMasterKey: true });
 }
 
 export async function updateDepositStatus(depositId, status)
 {
     const q = new Parse.Query('Deposit');
-    const dep = await q.get(depositId);
+    const dep = await q.get(depositId, { useMasterKey: true });
     dep.set('status', status);
-    await dep.save();
+    await dep.save(null, { useMasterKey: true });
 }
 
 export async function updateWithdrawalStatus(withdrawalId, status)
 {
     const q = new Parse.Query('Withdrawal');
-    const wd = await q.get(withdrawalId);
+    const wd = await q.get(withdrawalId, { useMasterKey: true });
     wd.set('status', status);
-    await wd.save();
+    await wd.save(null, { useMasterKey: true });
 }
 
 export async function updateKycStatus(userId, kycStatus)
 {
     const q = new Parse.Query('AppUser');
-    const user = await q.get(userId);
+    const user = await q.get(userId, { useMasterKey: true });
     user.set('kycStatus', kycStatus);
-    await user.save();
+    await user.save(null, { useMasterKey: true });
 }
 
 /* ================================================================
@@ -373,4 +373,40 @@ export async function registerWalletUser(walletAddress, provider)
     user.set('lastSeen', new Date());
     await user.save();
     return toPlain(user);
+}
+
+/* ================================================================
+   SYSTEM SETTINGS
+   Stored as a single 'SystemSettings' object in Back4App.
+   ================================================================ */
+
+/** Fetch the global system settings object */
+export async function getSystemSettings()
+{
+    const q = new Parse.Query('SystemSettings');
+    q.equalTo('key', 'global');
+    const record = await q.first();
+    return record ? toPlain(record) : null;
+}
+
+/** Save (upsert) system settings */
+export async function saveSystemSettings(settings)
+{
+    const q = new Parse.Query('SystemSettings');
+    q.equalTo('key', 'global');
+    let record = await q.first();
+
+    if (!record) {
+        const SystemSettingsClass = Parse.Object.extend('SystemSettings');
+        record = new SystemSettingsClass();
+        record.set('key', 'global');
+    }
+
+    const allowed = ['platformName', 'maintenanceMode', 'maxWithdrawalAmount', 'minDepositAmount', 'supportEmail'];
+    for (const key of allowed) {
+        if (key in settings) record.set(key, settings[key]);
+    }
+
+    await record.save(null, { useMasterKey: true });
+    return toPlain(record);
 }

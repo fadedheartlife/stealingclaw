@@ -1,19 +1,32 @@
-class Order {
-    constructor(type, amount, price) {
-        this.type = type; // 'buy' or 'sell'
-        this.amount = amount;
-        this.price = price;
-        this.timestamp = new Date(); // Order creation timestamp
-    }
+const mongoose = require('mongoose');
 
-    getOrderDetails() {
-        return {
-            type: this.type,
-            amount: this.amount,
-            price: this.price,
-            timestamp: this.timestamp,
-        };
-    }
-}
+const orderSchema = new mongoose.Schema(
+    {
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true,
+            ref: 'User',
+        },
+        type: {
+            type: String,
+            enum: ['buy', 'sell'],
+            required: true,
+        },
+        amount: {
+            type: Number,
+            required: true,
+        },
+        price: {
+            type: Number,
+            required: true,
+        },
+        status: {
+            type: String,
+            enum: ['open', 'filled', 'cancelled'],
+            default: 'open',
+        },
+    },
+    { timestamps: true }
+);
 
-module.exports = Order;
+module.exports = mongoose.model('Order', orderSchema);

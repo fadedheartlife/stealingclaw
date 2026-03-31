@@ -1,1 +1,43 @@
-// server.js\n\nconst express = require('express');\nconst mongoose = require('mongoose');\nconst bodyParser = require('body-parser');\nconst morgan = require('morgan'); // Logging middleware\nconst cors = require('cors'); // Enable cross-origin requests\n\nconst app = express();\nconst PORT = process.env.PORT || 3000; // Default port to 3000\n\n// Middleware configuration\napp.use(bodyParser.json());\napp.use(bodyParser.urlencoded({ extended: true }));\napp.use(morgan('dev')); // Log requests to console\napp.use(cors()); // Enable CORS\n\n// Database connection\nconst mongoURI = 'mongodb://localhost:27017/openclaw'; // Update with your actual mongo URI\nmongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })\n    .then(() => console.log('MongoDB connected...'))\n    .catch(err => console.error('MongoDB connection error:', err));\n\n// Routes\n// Example routes (you should replace these with your actual routes)\napp.get('/', (req, res) => {\n    res.send('Welcome to OpenClaw API!');\n});\n\n// Define your other routes\nconst routes = require('./routes'); // Ensure you create a routes file or modify accordingly\napp.use('/api', routes);\n\n// Error handling middleware\napp.use((err, req, res, next) => {\n    console.error(err.stack);\n    res.status(500).send('Something broke!');\n});\n\n// Start server\napp.listen(PORT, () => {\n    console.log(`Server is running on port ${PORT}`);\n});\n
+// server.js
+
+require('dotenv').config();
+
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const morgan = require('morgan'); // Logging middleware
+const cors = require('cors'); // Enable cross-origin requests
+
+const app = express();
+const PORT = process.env.PORT || 3000; // Default port to 3000
+
+// Middleware configuration
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(morgan('dev')); // Log requests to console
+app.use(cors()); // Enable CORS
+
+// Database connection
+const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/openclaw';
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('MongoDB connected...'))
+    .catch(err => console.error('MongoDB connection error:', err));
+
+// Routes
+app.get('/', (req, res) => {
+    res.send('Welcome to OpenClaw API!');
+});
+
+const routes = require('./routes');
+app.use('/api', routes);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Something broke!');
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
